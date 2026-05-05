@@ -13,7 +13,7 @@ import CombineSchedulers
 ///
 public struct ResponsiveTextField {
     /// The text field placeholder string.
-    let placeholder: String
+    let placeholder: String?
 
     /// A binding to the text state that will hold the typed text
     let text: Binding<String>
@@ -23,6 +23,9 @@ public struct ResponsiveTextField {
     /// This field can be updated, allowing you to toggle secure entry on and off using
     /// some external state.
     let isSecure: Bool
+
+    /// Enables return key automatically.
+    let enablesReturnKeyAutomatically: Bool
 
     /// Can be used to programatically control the text field's first responder state.
     ///
@@ -55,6 +58,10 @@ public struct ResponsiveTextField {
     ///
     @Environment(\.textFieldFont)
     var font: UIFont
+
+    /// Sets the text field placeholder color - use the `.responsiveTextFieldPlaceholderColor()` modifier.
+    @Environment(\.textFieldPlaceholderColor)
+    var placeholderColor: UIColor
 
     /// When `true`, configures the text field to automatically adjust its font based on the content size category.
     ///
@@ -123,9 +130,10 @@ public struct ResponsiveTextField {
     var standardEditActionHandler: StandardEditActionHandling<UITextField>?
 
     public init(
-        placeholder: String,
+        placeholder: String?,
         text: Binding<String>,
         isSecure: Bool = false,
+        enablesReturnKeyAutomatically: Bool = false,
         adjustsFontForContentSizeCategory: Bool = true,
         firstResponderDemand: Binding<FirstResponderDemand?>? = nil,
         configuration: Configuration = .empty,
@@ -140,6 +148,7 @@ public struct ResponsiveTextField {
         self.text = text
         self.firstResponderDemand = firstResponderDemand
         self.isSecure = isSecure
+        self.enablesReturnKeyAutomatically = enablesReturnKeyAutomatically
         self.configuration = configuration
         self.adjustsFontForContentSizeCategory = adjustsFontForContentSizeCategory
         self.onFirstResponderStateChanged = onFirstResponderStateChanged
@@ -325,11 +334,20 @@ extension ResponsiveTextField: UIViewRepresentable {
         textField.text = text.wrappedValue
         textField.isEnabled = isEnabled
         textField.isSecureTextEntry = isSecure
+        textField.enablesReturnKeyAutomatically = enablesReturnKeyAutomatically
         textField.font = font
         textField.adjustsFontForContentSizeCategory = adjustsFontForContentSizeCategory
         textField.textColor = textColor
         textField.textAlignment = textAlignment
         textField.returnKeyType = returnKeyType
+        
+        if let placeholder {
+            textField.attributedPlaceholder = NSAttributedString(
+                string: placeholder,
+                attributes: [NSAttributedString.Key.foregroundColor: self.placeholderColor]
+            )
+        }
+
         textField.delegate = context.coordinator
         textField.addTarget(context.coordinator,
             action: #selector(Coordinator.textFieldTextChanged(_:)),
@@ -352,10 +370,18 @@ extension ResponsiveTextField: UIViewRepresentable {
     public func updateUIView(_ uiView: UITextField, context: Context) {
         uiView.isEnabled = isEnabled
         uiView.isSecureTextEntry = isSecure
+        uiView.enablesReturnKeyAutomatically = enablesReturnKeyAutomatically
         uiView.returnKeyType = returnKeyType
         uiView.text = text.wrappedValue
         uiView.textColor = textColor
         uiView.textAlignment = textAlignment
+
+        if let placeholder {
+            uiView.attributedPlaceholder = NSAttributedString(
+                string: placeholder,
+                attributes: [NSAttributedString.Key.foregroundColor: self.placeholderColor]
+            )
+        }
 
         if !adjustsFontForContentSizeCategory {
             // We should only support dynamic font changes using our own environment
@@ -553,6 +579,11 @@ public extension View {
         environment(\.textFieldTextColor, color)
     }
 
+    /// Sets the text field placeholder text color on any child `ResponsiveTextField` views.
+    func responsiveTextFieldPlaceholderColor(_ color: UIColor) -> some View {
+        environment(\.textFieldPlaceholderColor, color)
+    }
+
     /// Sets the text field text alignment on any child `ResponsiveTextField` views.
     func responsiveTextFieldTextAlignment(_ alignment: NSTextAlignment) -> some View {
         environment(\.textFieldTextAlignment, alignment)
@@ -603,6 +634,7 @@ struct ResponsiveTextField_Previews: PreviewProvider {
             TextFieldPreview(configuration: .email, text: "example@example.com")
                 .responsiveTextFieldFont(.preferredFont(forTextStyle: .body))
                 .responsiveTextFieldTextColor(.systemBlue)
+                .responsiveTextFieldPlaceholderColor(.gray)
                 .previewLayout(.sizeThatFits)
                 .environment(\.sizeCategory, .extraExtraExtraLarge)
                 .previewDisplayName("Dynamic Font Size")
